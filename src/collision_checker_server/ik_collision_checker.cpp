@@ -43,6 +43,22 @@ MoveCollisionChecker::MoveCollisionChecker(const ros::NodeHandle& nh)
   robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
   planning_scene_=std::make_shared<planning_scene::PlanningScene>(robot_model_loader.getModel());
 
+  moveit::core::RobotState state=planning_scene_->getCurrentState();
+  std::vector<std::string> jmg_names=state.getJointModelGroup(group_name_)->getActiveJointModelNames();
+
+  for (const std::string& jname: jmg_names)
+  {
+    ROS_INFO("joint %s, index = %d",jname.c_str(),state.getJointModelGroup(group_name_)->getJointModel(jname)->getFirstVariableIndex());
+  }
+
+  std::vector<std::string> full_jmg_names=state.getJointModelGroup(group_name_)->getJointModelNames();
+  for (const std::string& jname: full_jmg_names)
+  {
+    ROS_INFO("joint %s, index = %d, %d",jname.c_str(),
+             state.getJointModelGroup(group_name_)->getJointModel(jname)->getFirstVariableIndex(),
+             state.getJointModelGroup(group_name_)->getJointModel(jname)->getMimic()
+             );
+  }
 }
 void MoveCollisionChecker::init()
 {
@@ -68,6 +84,7 @@ bool MoveCollisionChecker::collisionCheck(ik_solver_msgs::CollisionChecking::Req
     return false;
   }
 
+
   collision_detection::CollisionRequest col_req;
   col_req.contacts = req.detailed;
   col_req.distance = req.detailed;
@@ -79,10 +96,20 @@ bool MoveCollisionChecker::collisionCheck(ik_solver_msgs::CollisionChecking::Req
   {
     ik_solver_msgs::CollisionResult r;
     r.solution=c;
-    state.setJointGroupPositions(group_name_,c.configuration);
 
-    if (!state.satisfiesBounds())
+    for (size_t ij=0;ij<req.joint_names.size();ij++)
+      state.setJointPositions(req.joint_names.at(ij),&c.configuration.at(ij));
+
+    if (!state.satisfiesBounds(state.getJointModelGroup(group_name_)))
     {
+      for (const std::string& jname: jmg_names)
+      {
+        if (!state.satisfiesPositionBounds(state.getJointModelGroup(group_name_)->getJointModel(jname)))
+        {
+          r.out_of_bound_links.push_back(jname);
+          ROS_DEBUG("joint %s is out of bound. value =%f",jname.c_str());
+        }
+      }
       r.feasibility=0.0;
       r.out_of_bound=true;
     }
