@@ -40,7 +40,6 @@ int main(int argc, char **argv)
   ros::AsyncSpinner spinner(4);
   spinner.start();
 
-
   ros::ServiceClient ps_client = nh.serviceClient<moveit_msgs::GetPlanningScene>("/get_planning_scene");
   ps_client.waitForExistence();
   moveit_msgs::GetPlanningScene ps_srv;
@@ -52,21 +51,24 @@ int main(int argc, char **argv)
   }
 
   ik_solver::MoveCollisionChecker cc(pnh);
-//  cc.updatePlanningScene(ps_srv.response.scene);
   cc.init();
 
   ros::Rate lp(10);
+  ROS_INFO("Infinite Loop for Update the Planning Scene");
   while (ros::ok())
   {
     if (!ps_client.call(ps_srv))
     {
-      ROS_ERROR("Error on  get_planning_scene srv not ok");
+      ROS_ERROR("Error on  get_planning_scene srv not ok. Brutal Exit.");
       return -1;
     }
     else
+    {
       cc.updatePlanningScene(ps_srv.response.scene);
-
+    }
     lp.sleep();
   }
+
+  ROS_ERROR("Exit from infinite loop ");
   return 0;
 }

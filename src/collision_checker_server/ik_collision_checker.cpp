@@ -32,7 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace ik_solver
 {
 
-MoveCollisionChecker::MoveCollisionChecker(const ros::NodeHandle& nh)
+MoveCollisionChecker::MoveCollisionChecker(const ros::NodeHandle& nh) : robot_model_loader_("robot_description")
 {
   nh_=nh;
 
@@ -40,8 +40,8 @@ MoveCollisionChecker::MoveCollisionChecker(const ros::NodeHandle& nh)
   {
     throw std::invalid_argument(nh_.getNamespace()+"/group_name is not specified");
   }
-  robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
-  planning_scene_=std::make_shared<planning_scene::PlanningScene>(robot_model_loader.getModel());
+  
+  planning_scene_ = std::make_shared<planning_scene::PlanningScene>(robot_model_loader_.getModel() );
 
   moveit::core::RobotState state=planning_scene_->getCurrentState();
   std::vector<std::string> jmg_names=state.getJointModelGroup(group_name_)->getActiveJointModelNames();
@@ -60,6 +60,12 @@ MoveCollisionChecker::MoveCollisionChecker(const ros::NodeHandle& nh)
              );
   }
 }
+
+MoveCollisionChecker::~MoveCollisionChecker()
+{
+ planning_scene_.reset(); 
+}
+
 void MoveCollisionChecker::init()
 {
   server_=nh_.advertiseService("collision_check",&MoveCollisionChecker::collisionCheck,this);
@@ -147,7 +153,9 @@ void MoveCollisionChecker::updatePlanningScene(const moveit_msgs::PlanningScene&
 {
   scene_mtx_.lock();
   if (!planning_scene_->setPlanningSceneMsg(scene))
-    ROS_ERROR("unable to update planning scene");
+  {
+    ROS_ERROR("Unable to update the Planning Scene");
+  }
   scene_mtx_.unlock();
 }
 

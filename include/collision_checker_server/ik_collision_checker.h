@@ -40,6 +40,7 @@ class MoveCollisionChecker
 {
 public:
   MoveCollisionChecker(const ros::NodeHandle& nh);
+  ~MoveCollisionChecker();
 
   bool collisionCheck(ik_solver_msgs::CollisionChecking::Request& req,
                       ik_solver_msgs::CollisionChecking::Response& res);
@@ -56,6 +57,7 @@ protected:
   std::mutex scene_mtx_;
   std::string group_name_;
 
+  robot_model_loader::RobotModelLoader robot_model_loader_;
 
 };
 
