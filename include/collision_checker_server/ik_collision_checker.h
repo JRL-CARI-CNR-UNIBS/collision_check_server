@@ -1,30 +1,7 @@
-/*
-Copyright (c) 2022, JRL-CARI CNR-STIIMA/UNIBS
-Manuel Beschi manuel.beschi@unibs.it
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    * Neither the name of the <organization> nor the
-      names of its contributors may be used to endorse or promote products
-      derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+/**
+ * @file ik_collision_checker.h
+ * @brief Defines the MoveCollisionChecker class for checking collisions in a planning scene.
+ */
 
 #pragma once
 
@@ -34,30 +11,62 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <moveit/planning_scene/planning_scene.h>
 #include <moveit_msgs/GetPlanningScene.h>
 #include <moveit/robot_model_loader/robot_model_loader.h>
+
+/**
+ * @namespace ik_solver
+ * @brief Contains classes and functions for IK solver.
+ */
 namespace ik_solver
 {
+
+/**
+ * @class MoveCollisionChecker
+ * @brief Class for checking collisions in a planning scene.
+ */
 class MoveCollisionChecker
 {
 public:
+  /**
+   * @brief Constructor.
+   * @param nh NodeHandle object.
+   */
   MoveCollisionChecker(const ros::NodeHandle& nh);
+
+  /**
+   * @brief Destructor.
+   */
   ~MoveCollisionChecker();
 
+  /**
+   * @brief Checks for collisions.
+   * @param req CollisionChecking request.
+   * @param res CollisionChecking response.
+   * @return True if no collision, false otherwise.
+   */
   bool collisionCheck(ik_solver_msgs::CollisionChecking::Request& req,
                       ik_solver_msgs::CollisionChecking::Response& res);
 
+  /**
+   * @brief Updates the planning scene.
+   * @param scene PlanningScene object.
+   */
   void updatePlanningScene(const moveit_msgs::PlanningScene& scene);
 
+  /**
+   * @brief Initializes the MoveCollisionChecker object.
+   */
   void init();
+
 protected:
-  ros::NodeHandle nh_;
-  ros::ServiceServer server_;
+  ros::NodeHandle nh_;  ///< NodeHandle object.
+  ros::ServiceServer server_;  ///< ServiceServer object.
 
-  std::shared_ptr<planning_scene::PlanningScene> planning_scene_;
+  std::shared_ptr<planning_scene::PlanningScene> planning_scene_;  ///< Shared pointer to PlanningScene.
 
-  std::mutex scene_mtx_;
-  std::string group_name_;
+  std::mutex scene_mtx_;  ///< Mutex for scene.
+  std::string group_name_;  ///< Group name.
 
-  robot_model_loader::RobotModelLoader robot_model_loader_;
+  robot_model_loader::RobotModelLoader robot_model_loader_;  ///< RobotModelLoader object.
 
 };
 

@@ -1,62 +1,56 @@
-/*
-Copyright (c) 2022, JRL-CARI CNR-STIIMA/UNIBS
-Manuel Beschi manuel.beschi@unibs.it
-All rights reserved.
+/**
+ * @file node.cpp
+ * @brief Main file for the IK collision checker node.
+ */
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    * Neither the name of the <organization> nor the
-      names of its contributors may be used to endorse or promote products
-      derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
-
+// ROS includes
 #include <ros/ros.h>
+
+// Local includes
 #include <collision_checker_server/ik_collision_checker.h>
 #include <moveit_msgs/GetPlanningScene.h>
 
-int main(int argc, char **argv)
+/**
+ * @brief Main function for the IK collision checker node. The node exposes a service for checking collisions. The scene
+ * is updated by subscribing to the /get_planning_scene service. The collision checking is perform  by the
+ * MoveCollisionChecker class. This class is inline commented inside the header and cpp files.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return 0 on successful execution, -1 otherwise.
+ */
+int main(int argc, char** argv)
 {
+  // Initialize ROS node
   ros::init(argc, argv, "ik_collision_check");
   ros::NodeHandle nh;
   ros::NodeHandle pnh("~");
 
+  // Start ROS spinner
   ros::AsyncSpinner spinner(4);
   spinner.start();
 
+  // Create a service client for getting the planning scene
   ros::ServiceClient ps_client = nh.serviceClient<moveit_msgs::GetPlanningScene>("/get_planning_scene");
   ps_client.waitForExistence();
   moveit_msgs::GetPlanningScene ps_srv;
 
+  // Call the service to get the planning scene
   if (!ps_client.call(ps_srv))
   {
     ROS_ERROR("Error on  get_planning_scene srv not ok");
     return -1;
   }
 
+  // Initialize the collision checker
   ik_solver::MoveCollisionChecker cc(pnh);
   cc.init();
 
+  // Loop for updating the planning scene
   ros::Rate lp(10);
   ROS_INFO("Infinite Loop for Update the Planning Scene");
   while (ros::ok())
   {
+    // Call the service to get the planning scene
     if (!ps_client.call(ps_srv))
     {
       ROS_ERROR("Error on  get_planning_scene srv not ok. Brutal Exit.");
@@ -64,6 +58,7 @@ int main(int argc, char **argv)
     }
     else
     {
+      // Update the planning scene in the collision checker
       cc.updatePlanningScene(ps_srv.response.scene);
     }
     lp.sleep();
