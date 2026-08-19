@@ -239,7 +239,7 @@ namespace ik_solver
     scene_mtx_.lock();
     // RCLCPP_INFO(nh_->get_logger(), "Updating Planning Scene with new data...");
     // RCLCPP_INFO(nh_->get_logger(), "Planning Scene Message Allowed Collision Matrix size: %zu entries", scene.allowed_collision_matrix.entry_names.size());
-    if (!planning_scene_->setPlanningSceneMsg(scene))
+    if (!planning_scene_->setPlanningSceneDiffMsg(scene))
     {
       RCLCPP_ERROR(nh_->get_logger(), "Unable to update the Planning Scene");
     }
