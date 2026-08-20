@@ -3,10 +3,14 @@
 // This code is part of the ik_solver namespace
 namespace ik_solver
 {
-  // The MoveCollisionChecker class is defined here
+  /**
+   * @brief Construct a new Move Collision Checker object.
+   *
+   * @param nh The ROS 2 node handle.
+   */
   MoveCollisionChecker::MoveCollisionChecker(const rclcpp::Node::SharedPtr &nh) : robot_model_loader_(nh, "robot_description")
   {
-    // The NodeHandle object is assigned to the nh_ member variable
+    // Store the node handle
     nh_ = nh;
 
     // The group_name_ member variable is assigned the value of the "group_name" parameter
@@ -21,46 +25,52 @@ namespace ik_solver
       throw std::invalid_argument(std::string(nh_->get_namespace()) + "/group_name is not specified");
     }
 
-    // The planning_scene_ member variable is assigned a new PlanningScene object
-    // The PlanningScene object is initialized with the model obtained from the robot_model_loader_
+    // Initialize the planning scene from the robot model
     planning_scene_ = std::make_shared<planning_scene::PlanningScene>(robot_model_loader_.getModel());
 
-    // The current state of the robot is obtained from the planning_scene_
+    // Get the current state of the robot from the planning scene
     moveit::core::RobotState state = planning_scene_->getCurrentState();
 
-    // The names of the active joints in the group are obtained
+    // Get the names of the active joints in the specified group
     std::vector<std::string> jmg_names = state.getJointModelGroup(group_name_)->getActiveJointModelNames();
 
-    // For each joint in the group, its name and index are logged
+    // Log the name and index of each active joint in the group
     for (const std::string &jname : jmg_names)
     {
       RCLCPP_INFO(nh_->get_logger(), "joint %s, index = %d", jname.c_str(),
                   state.getJointModelGroup(group_name_)->getJointModel(jname)->getFirstVariableIndex());
     }
 
-    // The names of all the joints in the group are obtained
+    // Get the names of all joints in the group, including passive and mimic joints
     std::vector<std::string> full_jmg_names = state.getJointModelGroup(group_name_)->getJointModelNames();
 
-    // For each joint in the group, its name, index, and the index of its mimic joint are logged
+    // Log the name, index, and mimic joint index (if any) for all joints in the group
     for (const std::string &jname : full_jmg_names)
     {
       const auto *joint_model = state.getJointModelGroup(group_name_)->getJointModel(jname);
 
       if (joint_model->getMimic())
       {
-        RCLCPP_INFO(nh_->get_logger(), "joint %s, index = %zu, mimic index = %zu", jname.c_str(),
-                    joint_model->getFirstVariableIndex(),
+        RCLCPP_INFO(nh_->get_logger(), "joint %s, index = %zu, mimic index = %zu", jname.c_str(), joint_model->getFirstVariableIndex(),
                     joint_model->getMimic()->getJointIndex());
       }
       else
       {
-        RCLCPP_INFO(nh_->get_logger(), "joint %s, index = %zu", jname.c_str(),
-                    joint_model->getFirstVariableIndex());
+        RCLCPP_INFO(nh_->get_logger(), "joint %s, index = %zu", jname.c_str(), joint_model->getFirstVariableIndex());
       }
     }
+    std::string what;
+    std::string padding;
+    std::string scaling;
+    RCLCPP_INFO(nh_->get_logger(), "NH namespace: %s", nh_->get_namespace());
+    // Get padding and scaling parameters for collision checking
+    cnr::param::get(std::string(nh_->get_namespace()) + "/padding", padding_, what);
+    cnr::param::get(std::string(nh_->get_namespace()) + "/scaling", scaling_, what);
+    RCLCPP_INFO(nh_->get_logger(), "Collision checking padding: %.3f, scaling: %.3f", padding_, scaling_);
   }
-  // The destructor of the MoveCollisionChecker class
-  // It resets the planning_scene_ member variable
+  /**
+   * @brief Destroy the Move Collision Checker object.
+   */
   MoveCollisionChecker::~MoveCollisionChecker()
   {
     planning_scene_.reset();
@@ -68,26 +78,36 @@ namespace ik_solver
 
   void MoveCollisionChecker::init()
   {
+    // Create the service server for collision checking
     server_ = nh_->create_service<ik_solver_msgs::srv::CollisionChecking>(
-        "collision_check",
+        "/collision_check",
         std::bind(&MoveCollisionChecker::collisionCheck, this, std::placeholders::_1, std::placeholders::_2));
   }
 
-  // This is the collisionCheck function
-  // It performs collision checking for a given set of joint configurations
+  /**
+   * @brief Service callback to perform collision checking for a set of joint configurations.
+   *
+   * This function receives a request containing a planning scene and a vector of joint solutions.
+   * For each solution, it checks for joint limit violations and collisions with the environment.
+   * The results of these checks are returned in the response.
+   *
+   * @param req The service request, containing the planning scene and solutions to check.
+   * @param res The service response, which will be populated with the collision check results.
+   */
   void MoveCollisionChecker::collisionCheck(const std::shared_ptr<ik_solver_msgs::srv::CollisionChecking::Request> req,
                                             std::shared_ptr<ik_solver_msgs::srv::CollisionChecking::Response> res)
   {
-    // Update the planning scene with the provided scene
-    // updatePlanningScene(req->planning_scene);
-
-    // Get the current state of the robot
+    is_processing_request_ = true;
+    // Update the planning scene with the scene provided in the request
+    updatePlanningScene(req->planning_scene, true);
+    RCLCPP_INFO(nh_->get_logger(), "Received collision check request with %zu solutions", req->solutions.size());
+    // Get the current state of the robot from the planning scene
     moveit::core::RobotState state = planning_scene_->getCurrentState();
 
-    // Get the names of the active joints in the group
+    // Get the names of the active joints in the specified group
     std::vector<std::string> jmg_names = state.getJointModelGroup(group_name_)->getActiveJointModelNames();
 
-    // Check if the number of joint names match the number of active joints in the group
+    // Check if the number of joint names in the request matches the number of active joints in the group
     if (jmg_names.size() != req->joint_names.size())
     {
       RCLCPP_WARN(nh_->get_logger(), "Joint names do not match");
@@ -98,54 +118,57 @@ namespace ik_solver
       for (const std::string &s : jmg_names)
         RCLCPP_WARN(nh_->get_logger(), "- %s", s.c_str());
       RCLCPP_WARN(nh_->get_logger(), "RESORTING IS NOT IMPLEMENTED YET");
+      is_processing_request_ = false;
       return;
     }
 
-    // Set up collision request parameters
+    // Configure the collision request
     collision_detection::CollisionRequest col_req;
-    col_req.contacts = req->detailed;
-    col_req.distance = req->detailed;
-    col_req.max_contacts = req->detailed ? 10 : 0;
-    col_req.group_name = group_name_;
+    col_req.contacts = req->detailed;              // Request contact information if detailed results are needed
+    col_req.distance = req->detailed;              // Request distance information if detailed results are needed
+    col_req.max_contacts = req->detailed ? 10 : 0; // Max contacts to report
+    col_req.group_name = "";                       // Check collisions for the entire robot
 
-    // Lock the scene mutex to ensure thread safety
+    // Lock the planning scene to prevent concurrent modifications
     scene_mtx_.lock();
 
-    // Iterate over each provided joint configuration
+    // Iterate over each provided joint configuration (solution)
     for (size_t conf_idx = 0; conf_idx < req->solutions.size(); ++conf_idx)
     {
       auto &c = req->solutions[conf_idx];
       ik_solver_msgs::msg::CollisionResult r;
       r.solution = c;
 
-      // Set the joint positions in the robot state
+      // Set the joint positions in the robot state for the current configuration
       for (size_t ij = 0; ij < req->joint_names.size(); ij++)
         state.setJointPositions(req->joint_names.at(ij), &c.configuration.at(ij));
 
-      // 1. CONTROLLO LIMITI DEI GIUNTI (OUT OF BOUNDS)
+      // 1. JOINT LIMITS CHECK (OUT OF BOUNDS)
       if (!state.satisfiesBounds(state.getJointModelGroup(group_name_)))
       {
         r.feasibility = 0.0;
         r.out_of_bound = true;
 
+        // Identify which joints are out of bounds
         for (const std::string &jname : jmg_names)
         {
           if (!state.satisfiesPositionBounds(state.getJointModelGroup(group_name_)->getJointModel(jname)))
           {
             r.out_of_bound_links.push_back(jname);
 
-            // Estraggo il valore effettivo del giunto per stamparlo
+            // Extract the actual value of the joint to print it
             const double *joint_value = state.getJointPositions(jname);
-            RCLCPP_INFO(nh_->get_logger(),
-                        "[Configurazione %zu Fallita] Giunto fuori dai limiti: '%s' = %.3f",
-                        conf_idx, jname.c_str(), joint_value[0]);
+            RCLCPP_INFO(nh_->get_logger(), "[Configuration %zu Failed] Joint out of bounds: '%s' = %.3f", conf_idx,
+                        jname.c_str(), joint_value[0]);
           }
         }
       }
       else
       {
         r.out_of_bound = false;
+        // Update the transforms of all collision bodies
         state.updateCollisionBodyTransforms();
+        // Get the allowed collision matrix from the planning scene
         collision_detection::AllowedCollisionMatrix acm = planning_scene_->getAllowedCollisionMatrix();
         moveit::core::RobotState copied_state = planning_scene_->getCurrentState();
 
@@ -171,40 +194,48 @@ namespace ik_solver
         //     }
         //   }
         // }
-
-        // 2. CONTROLLO DELLE COLLISIONI
+        // std::vector<std::string> world_objects = planning_scene_->getWorld()->getObjectIds();
+        // RCLCPP_INFO(nh_->get_logger(), "Planning Scene has %zu collision objects.", world_objects.size());
+        // for (const auto &id : world_objects)
+        // {
+        //   auto obj = planning_scene_->getWorld()->getObject(id);
+        //   RCLCPP_INFO(nh_->get_logger(), "Collision Object: %s", obj->id_.c_str());
+        //   RCLCPP_INFO(nh_->get_logger(), "  - Type: %s", obj->shapes_.empty() ? "Unknown" : obj->shapes_[0]->type == shapes::SPHERE ? "Sphere"
+        //                                                                                                                             : "Other");
+        //   RCLCPP_INFO(nh_->get_logger(), "  - pose: [%.3f, %.3f, %.3f]", obj->pose_.translation().x(), obj->pose_.translation().y(), obj->pose_.translation().z());
+        // }
+        // 2. COLLISION CHECK
         collision_detection::CollisionResult col_res;
+        planning_scene_->checkCollision(col_req, col_res, state, acm);
 
-        planning_scene_->checkCollision(col_req, col_res, copied_state, acm);
-
+        // Set feasibility based on collision result
         r.feasibility = (col_res.collision) ? 0.0 : 1.0;
 
         if (col_res.collision)
         {
-          RCLCPP_INFO(nh_->get_logger(), "[Configurazione %zu Fallita] Rilevata Collisione!", conf_idx);
+          RCLCPP_INFO(nh_->get_logger(), "[Configuration %zu Failed] Collision detected!", conf_idx);
 
           if (req->detailed)
           {
-            // Se detailed è true, possiamo estrarre i nomi esatti degli oggetti/link che collidono
+            // If detailed is true, we can extract the exact names of the colliding objects/links
             for (const auto &contact : col_res.contacts)
             {
-              RCLCPP_INFO(nh_->get_logger(), "    -> Contatto tra: '%s' e '%s'",
-                          contact.first.first.c_str(),
+              RCLCPP_INFO(nh_->get_logger(), "    -> Contact between: '%s' and '%s'", contact.first.first.c_str(),
                           contact.first.second.c_str());
             }
           }
           else
           {
-            RCLCPP_INFO(nh_->get_logger(), "    -> (Imposta req->detailed = true nel client per vedere i link in collisione)");
+            RCLCPP_INFO(nh_->get_logger(), "    -> (Set req->detailed = true in the client to see colliding links)");
           }
         }
         else
         {
-          // Opzionale: stampa di successo
-          // RCLCPP_INFO(nh_->get_logger(), "[Configurazione %zu] Valida e collision-free.", conf_idx);
+          // Optional: log success
+          // RCLCPP_INFO(nh_->get_logger(), "[Configuration %zu] Valid and collision-free.", conf_idx);
         }
 
-        // Popolamento dei dati se richiesto dal client
+        // Populate detailed data if requested by the client
         if (req->detailed)
         {
           r.distance = col_res.distance;
@@ -216,39 +247,67 @@ namespace ik_solver
         }
       }
 
-      // Add the collision result to the response
+      // Add the collision result for the current configuration to the response
       res->result.push_back(r);
     }
 
     // Unlock the scene mutex
     scene_mtx_.unlock();
+    is_processing_request_ = false;
   }
 
-  // This function updates the planning scene with the provided scene
   /**
-   * @brief Updates the planning scene with the given moveit_msgs::PlanningScene.
+   * @brief Updates the planning scene with a given scene message, applying custom padding and scaling.
    *
-   * This function locks the scene mutex, sets the planning scene using the provided message,
-   * and then unlocks the mutex. If the planning scene cannot be set, an error message is printed.
+   * This function takes a `moveit_msgs::msg::PlanningScene`, applies the configured padding
+   * and scaling to all robot links, and then updates the internal planning scene.
+   * The update can be a full scene update or a differential update.
    *
-   * @param scene The moveit_msgs::PlanningScene to update the planning scene with.
+   * @param scene The `moveit_msgs::msg::PlanningScene` message to apply.
+   * @param is_diff True if `scene` is a differential update, false for a full scene update.
    */
-  void MoveCollisionChecker::updatePlanningScene(const moveit_msgs::msg::PlanningScene &scene)
+  void MoveCollisionChecker::updatePlanningScene(const moveit_msgs::msg::PlanningScene &scene, bool is_diff)
   {
-
     scene_mtx_.lock();
-    // RCLCPP_INFO(nh_->get_logger(), "Updating Planning Scene with new data...");
-    // RCLCPP_INFO(nh_->get_logger(), "Planning Scene Message Allowed Collision Matrix size: %zu entries", scene.allowed_collision_matrix.entry_names.size());
-    if (!planning_scene_->setPlanningSceneDiffMsg(scene))
+    // Create a local copy of the message to modify it
+    moveit_msgs::msg::PlanningScene modified_scene = scene;
+
+    // Get all link names from the robot model
+    const std::vector<std::string> &link_names = planning_scene_->getRobotModel()->getLinkModelNames();
+
+    // Apply padding and scaling to each link
+    for (const std::string &link_name : link_names)
     {
-      RCLCPP_ERROR(nh_->get_logger(), "Unable to update the Planning Scene");
+      // Add the Padding directive
+      moveit_msgs::msg::LinkPadding lp;
+      lp.link_name = link_name;
+      lp.padding = padding_;
+      modified_scene.link_padding.push_back(lp);
+
+      // Add the Scaling directive
+      moveit_msgs::msg::LinkScale ls;
+      ls.link_name = link_name;
+      ls.scale = scaling_;
+      modified_scene.link_scale.push_back(ls);
     }
-    // else
-    // {
-    //   RCLCPP_INFO(nh_->get_logger(), "Planning Scene updated successfully.");
-    //   RCLCPP_INFO(nh_->get_logger(), "Planning Scene Allowed Collision Matrix size after update: %zu entries", planning_scene_->getAllowedCollisionMatrix().getSize());
-    // }
+
+    // Update the planning scene with the modified message
+    bool success;
+    if (is_diff)
+    {
+      // Apply the modified scene as a differential update
+      success = planning_scene_->setPlanningSceneDiffMsg(modified_scene);
+    }
+    else
+    {
+      // Apply the modified scene as a full update
+      success = planning_scene_->setPlanningSceneMsg(modified_scene);
+    }
+
+    if (!success)
+    {
+      RCLCPP_ERROR(nh_->get_logger(), "Unable to update the Planning Scene with custom parameters");
+    }
     scene_mtx_.unlock();
   }
-
 } // namespace ik_solver
