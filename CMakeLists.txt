@@ -65,7 +65,7 @@ ament_target_dependencies(${PROJECT_NAME}_node
   moveit_core
   moveit_msgs
   moveit_ros_planning
-)
+) 
 
 # Install targets
 install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_node

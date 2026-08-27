@@ -213,20 +213,42 @@ namespace ik_solver
 
         if (col_res.collision)
         {
-          RCLCPP_INFO(nh_->get_logger(), "[Configuration %zu Failed] Collision detected!", conf_idx);
-
           if (req->detailed)
           {
             // If detailed is true, we can extract the exact names of the colliding objects/links
             for (const auto &contact : col_res.contacts)
             {
+
+              RCLCPP_INFO(nh_->get_logger(), "[Configuration %zu Failed] Collision detected!", conf_idx);
+
               RCLCPP_INFO(nh_->get_logger(), "    -> Contact between: '%s' and '%s'", contact.first.first.c_str(),
                           contact.first.second.c_str());
+
+              const auto object = planning_scene_->getWorld()->getObject("apple_183");
+              if (object)
+              {
+                const auto &translation = object->pose_.translation();
+                const auto &rotation = object->pose_.rotation();
+                const Eigen::Quaterniond quaternion(rotation);
+                RCLCPP_INFO(nh_->get_logger(), "apple_183: id='%s', shapes=%zu, shape_poses=%zu",
+                            object->id_.c_str(), object->shapes_.size(), object->shape_poses_.size());
+                RCLCPP_INFO(nh_->get_logger(),
+                            "  pose: position=[%.6f, %.6f, %.6f], rotation=[%.6f, %.6f, %.6f, %.6f]",
+                            translation.x(), translation.y(), translation.z(), quaternion.x(), quaternion.y(),
+                            quaternion.z(), quaternion.w());
+
+                for (std::size_t shape_idx = 0; shape_idx < object->shapes_.size(); ++shape_idx)
+                {
+                  const auto &shape = object->shapes_[shape_idx];
+                  RCLCPP_INFO(nh_->get_logger(), "  shape[%zu]: type=%d", shape_idx,
+                              shape ? static_cast<int>(shape->type) : -1);
+                }
+              }
+              else
+              {
+                RCLCPP_WARN(nh_->get_logger(), "Collision object 'apple_183' was not found in the planning scene");
+              }
             }
-          }
-          else
-          {
-            RCLCPP_INFO(nh_->get_logger(), "    -> (Set req->detailed = true in the client to see colliding links)");
           }
         }
         else
