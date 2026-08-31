@@ -82,6 +82,13 @@ install(DIRECTORY include/
   DESTINATION include
 )
 
+# Install scripts
+install(PROGRAMS
+  scripts/send_collision_request.py
+  scripts/send_ik_collision_request.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # Ament exports
 ament_export_targets(export_${PROJECT_NAME})
 ament_export_dependencies(

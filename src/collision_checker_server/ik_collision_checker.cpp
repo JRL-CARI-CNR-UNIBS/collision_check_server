@@ -188,6 +188,8 @@ namespace ik_solver
             {
               r.colliding_obj_first.push_back(contact.first.first);
               r.colliding_obj_second.push_back(contact.first.second);
+              RCLCPP_INFO(nh_->get_logger(), "Collision detected between '%s' and '%s'",
+                          contact.first.first.c_str(), contact.first.second.c_str());
             }
           }
         }
