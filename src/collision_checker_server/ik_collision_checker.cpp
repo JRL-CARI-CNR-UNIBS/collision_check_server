@@ -1,4 +1,5 @@
 #include <collision_checker_server/ik_collision_checker.hpp>
+#include <malloc.h>
 
 // This code is part of the ik_solver namespace
 namespace ik_solver
@@ -201,6 +202,7 @@ namespace ik_solver
     // Unlock the scene mutex
     scene_mtx_.unlock();
     is_processing_request_ = false;
+    malloc_trim(0);
   }
 
   /**
