@@ -1,4 +1,5 @@
 #include <collision_checker_server/ik_collision_checker.hpp>
+#include <malloc.h>
 
 // This code is part of the ik_solver namespace
 namespace ik_solver
@@ -131,131 +132,79 @@ namespace ik_solver
     // contacts between fixed links (e.g. cell parts touching because of the padding) are ignored.
     col_req.group_name = group_name_;
 
-    // Lock the planning scene to prevent concurrent modifications
+    // Lock the planning scene to prevent concurrent modifications during collision checking
     scene_mtx_.lock();
 
-    // Iterate over each provided joint configuration (solution)
-    for (size_t conf_idx = 0; conf_idx < req->solutions.size(); ++conf_idx)
+    const collision_detection::AllowedCollisionMatrix acm = planning_scene_->getAllowedCollisionMatrix();
+    const size_t num_solutions = req->solutions.size();
+    res->result.resize(num_solutions);
+
+#pragma omp parallel
     {
-      auto &c = req->solutions[conf_idx];
-      ik_solver_msgs::msg::CollisionResult r;
-      r.solution = c;
+      moveit::core::RobotState thread_state = planning_scene_->getCurrentState();
+      collision_detection::CollisionRequest thread_col_req = col_req;
+      const auto *jmg = thread_state.getJointModelGroup(group_name_);
+      const auto &local_jmg_names = jmg->getActiveJointModelNames();
 
-      // Set the joint positions in the robot state for the current configuration
-      for (size_t ij = 0; ij < req->joint_names.size(); ij++)
-        state.setJointPositions(req->joint_names.at(ij), &c.configuration.at(ij));
-
-      // 1. JOINT LIMITS CHECK (OUT OF BOUNDS)
-      if (!state.satisfiesBounds(state.getJointModelGroup(group_name_)))
+#pragma omp for schedule(dynamic, 32)
+      for (size_t conf_idx = 0; conf_idx < num_solutions; ++conf_idx)
       {
-        r.feasibility = 0.0;
-        r.out_of_bound = true;
+        const auto &c = req->solutions[conf_idx];
+        ik_solver_msgs::msg::CollisionResult r;
+        r.solution = c;
 
-        // Identify which joints are out of bounds
-        for (const std::string &jname : jmg_names)
+        // Set the joint positions in the thread-local robot state
+        for (size_t ij = 0; ij < req->joint_names.size(); ij++)
+          thread_state.setJointPositions(req->joint_names.at(ij), &c.configuration.at(ij));
+
+        // 1. JOINT LIMITS CHECK (OUT OF BOUNDS)
+        if (!thread_state.satisfiesBounds(jmg))
         {
-          if (!state.satisfiesPositionBounds(state.getJointModelGroup(group_name_)->getJointModel(jname)))
+          r.feasibility = 0.0;
+          r.out_of_bound = true;
+
+          for (const std::string &jname : local_jmg_names)
           {
-            r.out_of_bound_links.push_back(jname);
-
-            // Extract the actual value of the joint to print it
-            const double *joint_value = state.getJointPositions(jname);
-            RCLCPP_INFO(nh_->get_logger(), "[Configuration %zu Failed] Joint out of bounds: '%s' = %.3f", conf_idx,
-                        jname.c_str(), joint_value[0]);
-          }
-        }
-      }
-      else
-      {
-        r.out_of_bound = false;
-        // Update the transforms of all collision bodies
-        state.updateCollisionBodyTransforms();
-        // Get the allowed collision matrix from the planning scene
-        collision_detection::AllowedCollisionMatrix acm = planning_scene_->getAllowedCollisionMatrix();
-        moveit::core::RobotState copied_state = planning_scene_->getCurrentState();
-
-        // RCLCPP_INFO(nh_->get_logger(), "Allowed Collision Matrix size: %zu entries", acm.getSize());
-        // RCLCPP_INFO(nh_->get_logger(), "Allowed Collision Matrix:");
-        // std::vector<std::string> entry_names;
-        // acm.getAllEntryNames(entry_names);
-        // for (size_t i = 0; i < entry_names.size(); ++i)
-        // {
-        //   std::string entry1 = entry_names[i];
-        //   RCLCPP_INFO(nh_->get_logger(), "Entry %s - Allowed collisions: ", entry1.c_str());
-
-        //   for (size_t j = 1; j < entry_names.size(); ++j)
-        //   {
-        //     std::string entry2 = entry_names[j];
-        //     collision_detection::AllowedCollision::Type allowed_collision_type;
-        //     if (acm.getAllowedCollision(entry1, entry2, allowed_collision_type))
-        //     {
-        //       if (allowed_collision_type == collision_detection::AllowedCollision::ALWAYS)
-        //       {
-        //         RCLCPP_INFO(nh_->get_logger(), "  - %s ", entry2.c_str());
-        //       }
-        //     }
-        //   }
-        // }
-        // std::vector<std::string> world_objects = planning_scene_->getWorld()->getObjectIds();
-        // RCLCPP_INFO(nh_->get_logger(), "Planning Scene has %zu collision objects.", world_objects.size());
-        // for (const auto &id : world_objects)
-        // {
-        //   auto obj = planning_scene_->getWorld()->getObject(id);
-        //   RCLCPP_INFO(nh_->get_logger(), "Collision Object: %s", obj->id_.c_str());
-        //   RCLCPP_INFO(nh_->get_logger(), "  - Type: %s", obj->shapes_.empty() ? "Unknown" : obj->shapes_[0]->type == shapes::SPHERE ? "Sphere"
-        //                                                                                                                             : "Other");
-        //   RCLCPP_INFO(nh_->get_logger(), "  - pose: [%.3f, %.3f, %.3f]", obj->pose_.translation().x(), obj->pose_.translation().y(), obj->pose_.translation().z());
-        // }
-        // 2. COLLISION CHECK
-        collision_detection::CollisionResult col_res;
-        planning_scene_->checkCollision(col_req, col_res, state, acm);
-
-        // Set feasibility based on collision result
-        r.feasibility = (col_res.collision) ? 0.0 : 1.0;
-
-        if (col_res.collision)
-        {
-          RCLCPP_INFO(nh_->get_logger(), "[Configuration %zu Failed] Collision detected!", conf_idx);
-
-          if (req->detailed)
-          {
-            // If detailed is true, we can extract the exact names of the colliding objects/links
-            for (const auto &contact : col_res.contacts)
+            if (!thread_state.satisfiesPositionBounds(jmg->getJointModel(jname)))
             {
-              RCLCPP_INFO(nh_->get_logger(), "    -> Contact between: '%s' and '%s'", contact.first.first.c_str(),
-                          contact.first.second.c_str());
+              r.out_of_bound_links.push_back(jname);
             }
-          }
-          else
-          {
-            RCLCPP_INFO(nh_->get_logger(), "    -> (Set req->detailed = true in the client to see colliding links)");
           }
         }
         else
         {
-          // Optional: log success
-          // RCLCPP_INFO(nh_->get_logger(), "[Configuration %zu] Valid and collision-free.", conf_idx);
-        }
+          r.out_of_bound = false;
+          // Update the transforms of all collision bodies for this thread's state
+          thread_state.updateCollisionBodyTransforms();
 
-        // Populate detailed data if requested by the client
-        if (req->detailed)
-        {
-          r.distance = col_res.distance;
-          for (const auto &contact : col_res.contacts)
+          // 2. COLLISION CHECK
+          collision_detection::CollisionResult col_res;
+          planning_scene_->checkCollision(thread_col_req, col_res, thread_state, acm);
+
+          r.feasibility = (col_res.collision) ? 0.0 : 1.0;
+
+          // Populate detailed data if requested by the client
+          if (req->detailed)
           {
-            r.colliding_obj_first.push_back(contact.first.first);
-            r.colliding_obj_second.push_back(contact.first.second);
+            r.distance = col_res.distance;
+            for (const auto &contact : col_res.contacts)
+            {
+              r.colliding_obj_first.push_back(contact.first.first);
+              r.colliding_obj_second.push_back(contact.first.second);
+              RCLCPP_INFO(nh_->get_logger(), "Collision detected between '%s' and '%s'",
+                          contact.first.first.c_str(), contact.first.second.c_str());
+            }
           }
         }
-      }
 
-      // Add the collision result for the current configuration to the response
-      res->result.push_back(r);
+        res->result[conf_idx] = std::move(r);
+      }
     }
 
     // Unlock the scene mutex
     scene_mtx_.unlock();
     is_processing_request_ = false;
+    malloc_trim(0);
   }
 
   /**

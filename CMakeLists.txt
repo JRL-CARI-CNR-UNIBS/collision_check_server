@@ -22,6 +22,7 @@ find_package(moveit_ros_planning REQUIRED)
 find_package(cnr_param REQUIRED)
 find_package(cnr_yaml REQUIRED)
 find_package(cnr_logger REQUIRED)
+find_package(OpenMP REQUIRED)
 
 # Create library
 add_library(${PROJECT_NAME} SHARED
@@ -46,6 +47,7 @@ target_link_libraries(${PROJECT_NAME}
     cnr_param::cnr_param
     cnr_yaml::cnr_yaml
     cnr_logger::cnr_logger
+    OpenMP::OpenMP_CXX
 )
 # Create executable
 add_executable(${PROJECT_NAME}_node src/node.cpp)
@@ -65,7 +67,7 @@ ament_target_dependencies(${PROJECT_NAME}_node
   moveit_core
   moveit_msgs
   moveit_ros_planning
-)
+) 
 
 # Install targets
 install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_node
@@ -83,6 +85,13 @@ install(DIRECTORY include/
 # Install launch and config files
 install(DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME}
+)
+
+# Install scripts
+install(PROGRAMS
+  scripts/send_collision_request.py
+  scripts/send_ik_collision_request.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 # Ament exports

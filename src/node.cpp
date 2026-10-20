@@ -106,8 +106,13 @@ int main(int argc, char **argv)
     auto future = ps_client->async_send_request(req);
     if (future.wait_for(20s) != std::future_status::ready)
     {
-      RCLCPP_ERROR(nh->get_logger(), "Failed to get planning scene update. Exiting loop.");
-      break;
+      if (cc.is_processing_request_)
+        RCLCPP_WARN(nh->get_logger(), "Planning scene service timed out while processing a collision check request.");
+      else
+      {
+        RCLCPP_ERROR(nh->get_logger(), "Failed to get planning scene update. Exiting loop.");
+        break;
+      }
     }
     else
     {
