@@ -80,6 +80,11 @@ install(DIRECTORY include/
   DESTINATION include
 )
 
+# Install launch and config files
+install(DIRECTORY launch config
+  DESTINATION share/${PROJECT_NAME}
+)
+
 # Ament exports
 ament_export_targets(export_${PROJECT_NAME})
 ament_export_dependencies(

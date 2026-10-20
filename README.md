@@ -97,6 +97,10 @@ collision_check_server/
 │   ├── collision_checker_server/
 │   │   └── ik_collision_checker.cpp  # MoveCollisionChecker implementation
 │   └── node.cpp                   # main(): scene-polling loop + service init
+├── launch/
+│   └── collision_checker.launch.py   # launches the ik_collision_checker node
+├── config/
+│   └── collision_checker_params.yaml # default group_name/padding/scaling params
 ├── CMakeLists.txt
 ├── package.xml
 └── LICENSE
@@ -246,6 +250,17 @@ Replace `manipulator` with an actual planning group defined in your robot's
 SRDF (check `ros2 param get` on `move_group` or your SRDF file if unsure).
 
 ### 3. Launch the node
+
+Using the provided launch file (recommended), which defaults to
+`config/collision_checker_params.yaml` installed with the package — pass
+`params_file` to point at your own copy instead:
+
+```bash
+ros2 launch collision_checker_server collision_checker.launch.py \
+  params_file:=/path/to/collision_check_params.yaml
+```
+
+Or run the executable directly:
 
 ```bash
 ros2 run collision_checker_server ik_collision_checker \
@@ -437,9 +452,9 @@ For each `CollisionResult` in `result` (same order as the input `solutions`):
   against `group_name`'s active joints.
 - `CollisionResult::stamp` is never set by this node (left at its default
   value).
-- The node has no dedicated launch file in this package; it must be
-  launched with an explicit `--params-file` (or equivalent) as shown in the
-  tutorial, alongside a separately-launched MoveIt stack.
+- MoveIt itself must still be launched separately (see
+  [Prerequisites](#1-prerequisites)); this package only starts the collision
+  checker node.
 
 ## Troubleshooting
 

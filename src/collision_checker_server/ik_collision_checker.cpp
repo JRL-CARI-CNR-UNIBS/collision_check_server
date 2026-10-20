@@ -127,7 +127,9 @@ namespace ik_solver
     col_req.contacts = req->detailed;              // Request contact information if detailed results are needed
     col_req.distance = req->detailed;              // Request distance information if detailed results are needed
     col_req.max_contacts = req->detailed ? 10 : 0; // Max contacts to report
-    col_req.group_name = "";                       // Check collisions for the entire robot
+    // Only contacts involving the links moved by the group (including attached tools) are checked:
+    // contacts between fixed links (e.g. cell parts touching because of the padding) are ignored.
+    col_req.group_name = group_name_;
 
     // Lock the planning scene to prevent concurrent modifications
     scene_mtx_.lock();
