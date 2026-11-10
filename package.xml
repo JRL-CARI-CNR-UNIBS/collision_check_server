@@ -15,9 +15,6 @@
   <depend>moveit_ros_planning</depend>
   <depend>moveit_msgs</depend>
   <depend>rclcpp</depend>
-  <depend> cnr_param </depend>
-  <depend> cnr_yaml </depend>
-  <depend> cnr_logger </depend>
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

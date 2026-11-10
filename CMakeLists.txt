@@ -19,9 +19,6 @@ find_package(ik_solver_msgs REQUIRED)
 find_package(moveit_core REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(moveit_ros_planning REQUIRED)
-find_package(cnr_param REQUIRED)
-find_package(cnr_yaml REQUIRED)
-find_package(cnr_logger REQUIRED)
 find_package(OpenMP REQUIRED)
 
 # Create library
@@ -44,9 +41,6 @@ ament_target_dependencies(${PROJECT_NAME}
 )
 
 target_link_libraries(${PROJECT_NAME}
-    cnr_param::cnr_param
-    cnr_yaml::cnr_yaml
-    cnr_logger::cnr_logger
     OpenMP::OpenMP_CXX
 )
 # Create executable

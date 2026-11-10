@@ -122,11 +122,6 @@ ROS 2 / MoveIt:
 - `ik_solver_msgs` (provides the `CollisionChecking` service and the
   `Configuration` / `CollisionResult` messages)
 
-CNR CARI-UNIBS libraries:
-- `cnr_param` — used to read the `padding` and `scaling` parameters (see
-  below); falls back gracefully to compiled-in defaults if not found.
-- `cnr_yaml`, `cnr_logger` — transitive dependencies of `cnr_param`.
-
 At runtime the node also expects, on the ROS graph:
 - a `robot_description` parameter (standard MoveIt convention — typically
   published by whatever brings up `move_group` / `robot_state_publisher`),
@@ -142,30 +137,25 @@ colcon build --packages-select collision_checker_server
 source install/setup.bash
 ```
 
-Make sure `ik_solver_msgs`, `cnr_param`, `cnr_yaml`, and `cnr_logger` are
-already built (or included in the same workspace) before building this
-package.
+Make sure `ik_solver_msgs` is already built (or included in the same
+workspace) before building this package.
 
 ## Parameters
 
 | Parameter     | Type   | Required | Default | Source                                   | Description |
 |---------------|--------|----------|---------|-------------------------------------------|--------------|
 | `group_name`  | string | **yes**  | —       | standard ROS 2 node parameter             | Name of the MoveIt joint model group whose joints are set from `req.solutions` and whose bounds are checked. Constructor **throws `std::invalid_argument`** if missing or empty. |
-| `padding`     | double | no       | `0.01`  | `cnr_param` (see below)                   | Padding (meters) applied to every robot link before collision checking. |
-| `scaling`     | double | no       | `1.0`   | `cnr_param` (see below)                   | Scale factor applied to every robot link's collision geometry. |
+| `padding`     | double | no       | `0.01`  | standard ROS 2 node parameter             | Padding (meters) applied to every robot link before collision checking. |
+| `scaling`     | double | no       | `1.0`   | standard ROS 2 node parameter             | Scale factor applied to every robot link's collision geometry. |
 
 Notes:
 
 - `group_name` must be declared/set the normal ROS 2 way, e.g. via a
   `ros__parameters` YAML block or `-p group_name:=manipulator` on the
   command line, on the node's own namespace.
-- `padding` and `scaling` are read through `cnr_param`, which resolves keys
-  under **both** ROS1-style (`/ns/node/key`) and ROS2-style
-  (`/ns.node.key`) naming and can fall back to a "mapped file" YAML source
-  in addition to the live ROS 2 parameter server. In this node they are
-  looked up at `<node_namespace>/padding` and `<node_namespace>/scaling`. If
-  `cnr_param` can't find them, the C++ default member initializers
-  (`0.01` / `1.0`) are silently kept — there's no hard failure for these two.
+- `padding` and `scaling` are standard ROS 2 node parameters too (see
+  `config/collision_checker_params.yaml`); if they are not set, the defaults
+  (`0.01` / `1.0`) are used.
 - All three parameters are logged at startup (`INFO` level), including the
   active/passive/mimic joints of `group_name` and their variable indices —
   useful for sanity-checking that `group_name` resolves to what you expect.

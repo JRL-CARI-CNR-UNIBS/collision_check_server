@@ -34,7 +34,6 @@
 #endif
 #include <mutex>
 #include <atomic>
-#include <cnr_param/cnr_param.h>
 
 /**
  * @namespace ik_solver

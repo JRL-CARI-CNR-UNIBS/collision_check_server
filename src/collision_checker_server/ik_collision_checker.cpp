@@ -60,13 +60,9 @@ namespace ik_solver
         RCLCPP_INFO(nh_->get_logger(), "joint %s, index = %zu", jname.c_str(), joint_model->getFirstVariableIndex());
       }
     }
-    std::string what;
-    std::string padding;
-    std::string scaling;
-    RCLCPP_INFO(nh_->get_logger(), "NH namespace: %s", nh_->get_namespace());
-    // Get padding and scaling parameters for collision checking
-    cnr::param::get(std::string(nh_->get_namespace()) + "/padding", padding_, what);
-    cnr::param::get(std::string(nh_->get_namespace()) + "/scaling", scaling_, what);
+    // Padding and scaling applied to the robot links for collision checking (ROS parameters)
+    padding_ = nh_->declare_parameter<double>("padding", padding_);
+    scaling_ = nh_->declare_parameter<double>("scaling", scaling_);
     RCLCPP_INFO(nh_->get_logger(), "Collision checking padding: %.3f, scaling: %.3f", padding_, scaling_);
   }
   /**
