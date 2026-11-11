@@ -32,13 +32,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 
-ament_target_dependencies(${PROJECT_NAME}
-  rclcpp
-  ik_solver_msgs
-  moveit_core
-  moveit_msgs
-  moveit_ros_planning
-)
+target_link_libraries(${PROJECT_NAME} ${rclcpp_TARGETS} ${ik_solver_msgs_TARGETS} ${moveit_core_TARGETS} ${moveit_msgs_TARGETS} ${moveit_ros_planning_TARGETS})
 
 target_link_libraries(${PROJECT_NAME}
     OpenMP::OpenMP_CXX
@@ -55,13 +49,7 @@ target_link_libraries(${PROJECT_NAME}_node
   ${PROJECT_NAME}
 )
 
-ament_target_dependencies(${PROJECT_NAME}_node
-  rclcpp
-  ik_solver_msgs
-  moveit_core
-  moveit_msgs
-  moveit_ros_planning
-) 
+target_link_libraries(${PROJECT_NAME}_node ${rclcpp_TARGETS} ${ik_solver_msgs_TARGETS} ${moveit_core_TARGETS} ${moveit_msgs_TARGETS} ${moveit_ros_planning_TARGETS}) 
 
 # Install targets
 install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_node
