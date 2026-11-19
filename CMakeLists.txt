@@ -82,6 +82,11 @@ install(DIRECTORY include/
   DESTINATION include
 )
 
+# Install launch and config files
+install(DIRECTORY launch config
+  DESTINATION share/${PROJECT_NAME}
+)
+
 # Install scripts
 install(PROGRAMS
   scripts/send_collision_request.py

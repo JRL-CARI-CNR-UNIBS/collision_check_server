@@ -10,11 +10,28 @@
 #include <ik_solver_msgs/msg/collision_result.hpp>
 #include <ik_solver_msgs/msg/configuration.hpp>
 
+// MoveIt >= Jazzy ships .hpp headers, Humble only .h
+#if __has_include(<moveit/planning_scene/planning_scene.hpp>)
 #include <moveit/planning_scene/planning_scene.hpp>
+#else
+#include <moveit/planning_scene/planning_scene.h>
+#endif
 #include <moveit_msgs/srv/get_planning_scene.hpp>
+#if __has_include(<moveit/robot_model_loader/robot_model_loader.hpp>)
 #include <moveit/robot_model_loader/robot_model_loader.hpp>
+#else
+#include <moveit/robot_model_loader/robot_model_loader.h>
+#endif
+#if __has_include(<moveit/collision_detection/collision_matrix.hpp>)
 #include <moveit/collision_detection/collision_matrix.hpp>
+#else
+#include <moveit/collision_detection/collision_matrix.h>
+#endif
+#if __has_include(<moveit/collision_detection/world.hpp>)
 #include <moveit/collision_detection/world.hpp>
+#else
+#include <moveit/collision_detection/world.h>
+#endif
 #include <mutex>
 #include <atomic>
 #include <cnr_param/cnr_param.h>

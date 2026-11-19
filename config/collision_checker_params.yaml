@@ -1,0 +1,5 @@
+ik_collision_check:
+  ros__parameters:
+    group_name: "ur_robot"   # MoveIt planning group to check (replace with your group name)
+    padding: 0.01                # meters, applied to every robot link before collision checking
+    scaling: 1.0                 # scale factor applied to every robot link's collision geometry
