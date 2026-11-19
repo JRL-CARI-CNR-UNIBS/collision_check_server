@@ -71,6 +71,7 @@ namespace ik_solver
 
   protected:
     rclcpp::Node::SharedPtr nh_;                                                ///< ROS 2 node shared pointer.
+    rclcpp::CallbackGroup::SharedPtr cb_group_;                                 ///< Dedicated callback group for the collision check service.
     rclcpp::Service<ik_solver_msgs::srv::CollisionChecking>::SharedPtr server_; ///< The service server for collision checking.
 
     std::shared_ptr<planning_scene::PlanningScene> planning_scene_; ///< Shared pointer to the MoveIt PlanningScene.

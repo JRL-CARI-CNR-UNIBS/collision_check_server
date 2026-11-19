@@ -37,8 +37,12 @@ int main(int argc, char **argv)
   std::thread spinner_thread([&executor]()
                              { executor.spin(); });
 
-  // Create a service client for getting the planning scene
-  auto ps_client = nh->create_client<moveit_msgs::srv::GetPlanningScene>("/get_planning_scene");
+  // Create a dedicated callback group and service client for getting the planning scene
+  auto client_cb_group = nh->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  auto ps_client = nh->create_client<moveit_msgs::srv::GetPlanningScene>(
+      "/get_planning_scene",
+      rclcpp::ServicesQoS(),
+      client_cb_group);
 
   // Wait for the planning scene service to become available.
   while (!ps_client->wait_for_service(1s))
@@ -67,6 +71,7 @@ int main(int argc, char **argv)
   if (result_future.wait_for(10s) != std::future_status::ready)
   {
     RCLCPP_ERROR(nh->get_logger(), "Failed to get initial planning scene. Shutting down.");
+    ps_client->remove_pending_request(result_future);
     rclcpp::shutdown();
     spinner_thread.join();
     return -1;
@@ -79,9 +84,9 @@ int main(int argc, char **argv)
   ik_solver::MoveCollisionChecker cc(nh);
   cc.init();
 
-  // Start the main loop to periodically update the planning scene.
-  rclcpp::Rate lp(10);
-  RCLCPP_INFO(nh->get_logger(), "Starting periodic planning scene updates.");
+  // Start the main loop to periodically update the planning scene at 1 Hz.
+  rclcpp::Rate lp(1.0);
+  RCLCPP_INFO(nh->get_logger(), "Starting periodic planning scene updates at 1 Hz.");
   while (rclcpp::ok())
   {
     // If a collision check request is currently being processed, skip this update cycle
@@ -106,21 +111,28 @@ int main(int argc, char **argv)
     auto future = ps_client->async_send_request(req);
     if (future.wait_for(20s) != std::future_status::ready)
     {
+      ps_client->remove_pending_request(future);
       if (cc.is_processing_request_)
-        RCLCPP_WARN(nh->get_logger(), "Planning scene service timed out while processing a collision check request.");
+        RCLCPP_WARN(nh->get_logger(), "Planning scene service timed out while processing a collision check request. Skipping update.");
       else
-      {
-        RCLCPP_ERROR(nh->get_logger(), "Failed to get planning scene update. Exiting loop.");
-        break;
-      }
+        RCLCPP_WARN(nh->get_logger(), "Planning scene update timed out after 20s. Skipping update cycle.");
+      lp.sleep();
+      continue;
     }
     else
     {
-      auto response = future.get();
+      if (cc.is_processing_request_)
+      {
+        RCLCPP_DEBUG(nh->get_logger(), "Collision check in progress, skipping applying periodic planning scene update.");
+      }
+      else
+      {
+        auto response = future.get();
 
-      // The planning scene is updated with 'is_diff' set to false,
-      // which means a full scene update is performed.
-      cc.updatePlanningScene(response->scene, false);
+        // The planning scene is updated with 'is_diff' set to false,
+        // which means a full scene update is performed.
+        cc.updatePlanningScene(response->scene, false);
+      }
     }
     lp.sleep();
   }

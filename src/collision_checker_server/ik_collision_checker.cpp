@@ -38,7 +38,7 @@ namespace ik_solver
     // Log the name and index of each active joint in the group
     for (const std::string &jname : jmg_names)
     {
-      RCLCPP_INFO(nh_->get_logger(), "joint %s, index = %d", jname.c_str(),
+      RCLCPP_INFO(nh_->get_logger(), "joint %s, index = %zu", jname.c_str(),
                   state.getJointModelGroup(group_name_)->getJointModel(jname)->getFirstVariableIndex());
     }
 
@@ -79,10 +79,13 @@ namespace ik_solver
 
   void MoveCollisionChecker::init()
   {
-    // Create the service server for collision checking
+    cb_group_ = nh_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    // Create the service server for collision checking with its dedicated callback group
     server_ = nh_->create_service<ik_solver_msgs::srv::CollisionChecking>(
         "/collision_check",
-        std::bind(&MoveCollisionChecker::collisionCheck, this, std::placeholders::_1, std::placeholders::_2));
+        std::bind(&MoveCollisionChecker::collisionCheck, this, std::placeholders::_1, std::placeholders::_2),
+        rclcpp::ServicesQoS(),
+        cb_group_);
   }
 
   /**
